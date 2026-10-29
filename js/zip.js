@@ -64,7 +64,14 @@ async function createZip(files) {
 
   for (const f of files) {
     const nameBytes = new TextEncoder().encode(f.name);
-    const data = f.data instanceof Uint8Array ? f.data : new Uint8Array(await f.data.arrayBuffer());
+    let data;
+    if (f.data instanceof Uint8Array) {
+      data = f.data;
+    } else if (f.data instanceof ArrayBuffer) {
+      data = new Uint8Array(f.data);
+    } else {
+      data = new Uint8Array(await f.data.arrayBuffer());
+    }
     const crc = crc32(data);
     const size = data.length;
 

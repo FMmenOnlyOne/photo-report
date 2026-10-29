@@ -322,34 +322,46 @@ function buildReportText(o, order, photoLines) {
 }
 
 async function exportOrder() {
+  const btn = $('#btn-export');
   const orderId = state.currentOrderId;
-  const order = await dbGet('orders', orderId);
-  if (!order) { alert('Заказ не найден'); return; }
-  const object = await dbGet('objects', order.objectId);
-  const photos = await dbAllByIndex('photos', 'orderId', orderId);
-  if (!photos.length) { alert('Нет фото для экспорта'); return; }
+  try {
+    const order = await dbGet('orders', orderId);
+    if (!order) { alert('Заказ не найден'); return; }
+    const object = await dbGet('objects', order.objectId);
+    const photos = await dbAllByIndex('photos', 'orderId', orderId);
+    if (!photos.length) { alert('Нет фото для экспорта'); return; }
 
-  const files = [];
-  const photoLines = [];
-  const counters = {};
+    btn.disabled = true;
+    btn.textContent = 'Собираю архив…';
 
-  for (const stage of stageOrder) {
-    for (const p of photos.filter((x) => x.stage === stage)) {
-      counters[stage] = (counters[stage] || 0) + 1;
-      const ext = (p.mimeType && p.mimeType.includes('png')) ? 'png' : 'jpg';
-      const name = stageFile[stage] + '_' + String(counters[stage]).padStart(2, '0') + '.' + ext;
-      const note = p.note ? ' — ' + p.note : '';
-      const ts = p.createdAt ? new Date(p.createdAt).toLocaleString('ru-RU') : '';
-      photoLines.push('[' + stageLabel[stage] + '] ' + name + note + ' (' + ts + ')');
-      files.push({ name, data: await p.blob.arrayBuffer() });
+    const files = [];
+    const photoLines = [];
+    const counters = {};
+
+    for (const stage of stageOrder) {
+      for (const p of photos.filter((x) => x.stage === stage)) {
+        counters[stage] = (counters[stage] || 0) + 1;
+        const ext = (p.mimeType && p.mimeType.includes('png')) ? 'png' : 'jpg';
+        const name = stageFile[stage] + '_' + String(counters[stage]).padStart(2, '0') + '.' + ext;
+        const note = p.note ? ' — ' + p.note : '';
+        const ts = p.createdAt ? new Date(p.createdAt).toLocaleString('ru-RU') : '';
+        photoLines.push('[' + stageLabel[stage] + '] ' + name + note + ' (' + ts + ')');
+        files.push({ name, data: await p.blob.arrayBuffer() });
+      }
     }
+
+    const lines = buildReportText(object, order, photoLines);
+    files.unshift({ name: 'report.txt', data: new TextEncoder().encode(lines.join('\r\n')) });
+
+    const blob = await createZip(files);
+    triggerDownload(blob, 'otchet_' + orderId + '.zip');
+  } catch (err) {
+    console.error('Ошибка экспорта:', err);
+    alert('Ошибка при экспорте: ' + (err && err.message ? err.message : err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬇️ Экспорт архива (фото + отчёт)';
   }
-
-  const lines = buildReportText(object, order, photoLines);
-  files.unshift({ name: 'report.txt', data: new TextEncoder().encode(lines.join('\r\n')) });
-
-  const blob = await createZip(files);
-  triggerDownload(blob, 'otchet_' + orderId + '.zip');
 }
 
 function triggerDownload(blob, filename) {

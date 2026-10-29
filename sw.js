@@ -1,4 +1,4 @@
-const CACHE = 'photo-report-v1';
+const CACHE = 'photo-report-v2';
 const ASSETS = [
   './',
   './index.html',
